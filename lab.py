@@ -29,6 +29,13 @@ def prompt(case, index, seed):
     return prefix + 'Explain in detail how a computer executes a program, covering processors, memory and storage. Continue for at least 800 words.'
 
 
+def engine_decode_rate(usage, timings):
+    for value in (usage.get('completion_tokens_per_sec'), timings.get('predicted_per_second')):
+        if type(value) in (int, float) and math.isfinite(value) and value > 0:
+            return value
+    return None
+
+
 def sample(args, case, index):
     message = prompt(case, index, args.seed)
     body = dict(model=args.model, temperature=0, stream=True, max_tokens=args.tokens,
@@ -53,8 +60,8 @@ def sample(args, case, index):
             event = json.loads(data)
             if event.get('error'):
                 raise ValueError('Server reported a streaming error')
-            usage = event.get('usage') or usage
-            timings = event.get('timings') or timings
+            usage.update(event.get('usage') or {})
+            timings.update(event.get('timings') or {})
             for choice in event.get('choices', []):
                 delta = choice.get('delta', {})
                 if any(delta.get(k) for k in ('content','reasoning_content','reasoning')):
@@ -69,6 +76,7 @@ def sample(args, case, index):
         raise ValueError(f'8K case requires 8192 ±128 input tokens. The server reported {count}.')
     return dict(case=case, prompt_sha256=hashlib.sha256(message.encode()).hexdigest(), input_tokens=count, output_tokens=n, first=first-start,
                 total=time.perf_counter()-start, decode=(n-1)/(last-first) if last>first and n>1 else None,
+                engine_decode=engine_decode_rate(usage, timings),
                 prefill=usage.get('prompt_tokens_per_sec') or timings.get('prompt_per_second'))
 
 
@@ -112,7 +120,7 @@ def report(args):
             if fingerprints != case_prompts.setdefault(case, fingerprints):
                 raise ValueError(f'Cannot compare {case} runs with different prompt samples. Repeat both with matching settings.')
             row = dict(name=html.escape(identity[0]), runtime=html.escape(identity[1]) + f' · n={len(group)}', case=case)
-            for key in ('first', 'total', 'decode', 'prefill'):
+            for key in ('first', 'total', 'decode', 'engine_decode', 'prefill'):
                 values = [r.get(key) for r in group]
                 row[key] = statistics.median(values) if all(isinstance(v,(int,float)) and math.isfinite(v) and v>0 for v in values) else None
             rows.append(row)

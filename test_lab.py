@@ -19,7 +19,12 @@ class Fixture(BaseHTTPRequestHandler):
             self.wfile.write(b'data: '+json.dumps(event).encode()+b'\n\n')
         count = 8192 if len(request['messages'][0]['content']) > 20000 else 70
         usage = {'completion_tokens':4,'prompt_tokens':count,'prompt_tokens_per_sec':200}
-        self.wfile.write(b'data: '+json.dumps({'usage':usage}).encode()+b'\n\ndata: [DONE]\n\n')
+        metrics = {'usage': usage}
+        if count == 8192:
+            metrics['timings'] = {'predicted_per_second': 123.5}
+        else:
+            usage['completion_tokens_per_sec'] = 111.5
+        self.wfile.write(b'data: '+json.dumps(metrics).encode()+b'\n\ndata: [DONE]\n\n')
 
     def log_message(self, *_):
         pass
@@ -38,6 +43,7 @@ class Workflow(unittest.TestCase):
                 server.shutdown()
             rows=json.loads((Path(tmp)/'run.json').read_text())['samples']
             self.assertEqual([r['case'] for r in rows],['short','long','8k'])
+            self.assertEqual([r['engine_decode'] for r in rows], [111.5, 111.5, 123.5])
             self.assertTrue(all(r['output_tokens']==4 for r in rows))
             subprocess.run(cli+['report','run.json'],cwd=tmp,check=True,capture_output=True)
             page=(Path(tmp)/'league.html').read_text()
@@ -47,9 +53,15 @@ class Workflow(unittest.TestCase):
             other['runtime'] = 'second runtime'
             second = Path(tmp)/'second.json'
             self.assertEqual(len(other['samples'][0]['prompt_sha256']), 64)
+            for sample in other['samples']:
+                del sample['engine_decode']  # Previously saved v1 runs.
             second.write_text(json.dumps(other))
             compare = cli + ['report','run.json','second.json']
             subprocess.run(compare,cwd=tmp,check=True,capture_output=True)
+            page = (Path(tmp)/'league.html').read_text()
+            data = json.loads(page.split('const rows=',1)[1].split(';\n',1)[0])
+            native = [r['engine_decode'] for r in data if r['case']=='8k']
+            self.assertEqual(native, [123.5, None])
             other['samples'][0]['prompt_sha256'] = '0' * 64
             second.write_text(json.dumps(other))
             mismatch = subprocess.run(compare,cwd=tmp,text=True,capture_output=True)

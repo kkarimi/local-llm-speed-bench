@@ -32,10 +32,10 @@
 </style>
 <canvas id="horizon" width="640" height="420" aria-hidden="true"></canvas><header><div class="brand"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>Local LLM Speed Bench</div><a href="#method" id="guide">How to read the scores</a></header>
 <main><div class="hero"><div><h1>Model league</h1><p>__MACHINE__</p></div><div><div class="spectrum" aria-hidden="true" id="spectrum"></div><div class="plotlabel" id="plotlabel"></div></div></div>
-<section aria-label="Model rankings"><div class="filters"><div><span class="caption" id="promptlabel">Prompt length</span><div class="seg" role="group" aria-labelledby="promptlabel"><button data-case="short">Short</button><button data-case="long">Long</button><button data-case="8k">8K</button></div></div><div><label for="metric">Rank by</label><select id="metric"><option value="decode">Generation speed</option><option value="prefill">Prompt processing</option><option value="first">Time to first token</option><option value="total">Total response time</option></select></div></div>
+<section aria-label="Model rankings"><div class="filters"><div><span class="caption" id="promptlabel">Prompt length</span><div class="seg" role="group" aria-labelledby="promptlabel"><button data-case="short">Short</button><button data-case="long">Long</button><button data-case="8k">8K</button></div></div><div><label for="metric">Rank by</label><select id="metric"><option value="decode">Decode speed · client</option><option value="engine_decode">Decode speed · engine</option><option value="prefill">Prompt processing</option><option value="first">Time to first token</option><option value="total">Total response time</option></select></div></div>
 <table class="ranking"><thead><tr><th scope="col">Rank</th><th scope="col">Model / configuration</th><th class="num" scope="col" id="unit"></th><th class="score" scope="col">Rating / 100</th></tr></thead><tbody id="body"></tbody></table><p class="note" id="count" aria-live="polite"></p></section>
 <div class="below"><details id="method"><summary>How the ratings work</summary><p>Each rating compares a configuration with the leader for the selected metric and prompt length. The leader scores 100. Twice the wait or half the throughput scores 50. Ratings describe speed. Coding accuracy and answer quality were outside these tests.</p>
-<p>Each row gives the median across its recorded samples after one warm-up. Input speed uses engine timings when available. Output speed estimates decode from streamed output and completion-token counts. First output includes any streamed reasoning.</p></details></div></main>
+<p>Each row gives the median across its recorded samples after one warm-up. Input speed uses engine timings when available. Client decode estimates speed from the first and last streamed output and the completion-token count. Engine decode uses the rate reported by the server. A dash means the comparison rate is unavailable. First output includes any streamed reasoning.</p></details></div></main>
 <footer>Generated with Local LLM Speed Bench</footer>
 <script>
 // A static, dithered horizon in the desktop frame.
@@ -60,15 +60,17 @@ const desktop=matchMedia('(min-width:900px)');
 if(desktop.matches)drawHorizon();
 desktop.addEventListener('change',e=>{if(e.matches)drawHorizon()});
 const rows=__ROWS__;
-const labels={decode:['Output tok/s','generation speed'],prefill:['Input tok/s','prompt processing'],first:['Seconds','first-token latency'],total:['Seconds','response time']};
+const labels={decode:['Client tok/s','client decode speed'],engine_decode:['Engine tok/s','engine decode speed'],prefill:['Input tok/s','prompt processing'],first:['Seconds','first-token latency'],total:['Seconds','response time']};
 let workload='short';const metric=document.getElementById('metric');
 function render(){
  const key=metric.value,latency=key==='first'||key==='total';
  const ranked=rows.filter(r=>r.case===workload&&r[key]!=null).sort((a,b)=>latency?a[key]-b[key]:b[key]-a[key]);
+ const otherDecode = key==='decode' ? 'engine_decode' : key==='engine_decode' ? 'decode' : null;
+ const comparison = r => otherDecode ? '<div class="sub">'+(otherDecode==='decode'?'Client':'Engine')+' '+(r[otherDecode]?.toFixed(1) ?? '—')+'</div>' : '';
  const score=r=>100*(latency?ranked[0][key]/r[key]:r[key]/ranked[0][key]);
  document.querySelectorAll('[data-case]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.case===workload));
  document.getElementById('unit').textContent=labels[key][0];
- document.getElementById('body').innerHTML=ranked.length ? ranked.map((r,i)=>'<tr><td>'+String(i+1).padStart(2,'0')+'</td><td><div class="model">'+r.name+'</div><div class="sub">'+r.runtime+'</div></td><td class="num">'+r[key].toLocaleString('en-GB',{minimumFractionDigits:latency?3:1,maximumFractionDigits:latency?3:1})+'</td><td><div class="track"><b>'+Math.round(score(r))+'</b><span class="rail"><i style="width:'+score(r)+'%"></i></span></div></td></tr>').join('') : '<tr><td colspan="4">No measurements for this selection.</td></tr>';
+ document.getElementById('body').innerHTML=ranked.length ? ranked.map((r,i)=>'<tr><td>'+String(i+1).padStart(2,'0')+'</td><td><div class="model">'+r.name+'</div><div class="sub">'+r.runtime+'</div></td><td class="num">'+r[key].toLocaleString('en-GB',{minimumFractionDigits:latency?3:1,maximumFractionDigits:latency?3:1})+comparison(r)+'</td><td><div class="track"><b>'+Math.round(score(r))+'</b><span class="rail"><i style="width:'+score(r)+'%"></i></span></div></td></tr>').join('') : '<tr><td colspan="4">No measurements for this selection.</td></tr>';
  document.getElementById('spectrum').innerHTML=ranked.map(r=>'<i style="height:'+Math.max(2,score(r))+'%"></i>').join('');
  document.getElementById('plotlabel').textContent='Relative '+labels[key][1]+' rating by rank';
  document.getElementById('count').textContent=ranked.length+' measured configurations · Medians after warm-up · '+(latency?'Lower time ranks first':'Higher throughput ranks first');
