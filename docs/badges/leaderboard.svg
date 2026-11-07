@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="168" height="20" role="img" aria-label="live leaderboard: RTX 5090">
+  <title>live leaderboard: RTX 5090</title>
+  <clipPath id="badge"><rect width="168" height="20" rx="3"/></clipPath>
+  <g clip-path="url(#badge)"><rect width="100" height="20" fill="#334155"/><rect x="100" width="68" height="20" fill="#2456b4"/></g>
+  <g fill="#fff" font-family="Verdana,Arial,sans-serif" font-size="11" text-anchor="middle">
+    <text x="50.0" y="14">live leaderboard</text><text x="134.0" y="14">RTX 5090</text>
+  </g>
+</svg>
