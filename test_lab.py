@@ -9,6 +9,14 @@ import unittest
 
 
 class Fixture(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path != '/v1/models':
+            self.send_error(404)
+            return
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b'{"data":[{"id":"fixture"},{"id":"other"},{"id":"fixture"}]}')
+
     def do_POST(self):
         request = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
         self.send_response(200)
@@ -31,6 +39,21 @@ class Fixture(BaseHTTPRequestHandler):
 
 
 class Workflow(unittest.TestCase):
+    def test_discovery_and_custom_workload(self):
+        cli = [sys.executable, str(Path(__file__).with_name('lab.py').resolve())]
+        with tempfile.TemporaryDirectory() as tmp, ThreadingHTTPServer(('127.0.0.1', 0), Fixture) as server:
+            threading.Thread(target=server.serve_forever, daemon=True).start()
+            url = f'http://127.0.0.1:{server.server_port}/v1'
+            try:
+                catalog = subprocess.check_output(cli + ['models', '--url', url])
+                self.assertEqual(json.loads(catalog), ['fixture', 'other'])
+                out = Path(tmp) / 'custom.json'
+                subprocess.run(cli + ['bench', '--url', url, '--model', 'other', '--runtime', 'test',
+                                      '--cases', 'long', '--samples', '1', '--out', str(out)], check=True, capture_output=True)
+                self.assertEqual([r['case'] for r in json.loads(out.read_text())['samples']], ['long'])
+            finally:
+                server.shutdown()
+
     def test_standalone_report(self):
         cli = [sys.executable, str(Path(__file__).with_name('lab.py').resolve())]
         with tempfile.TemporaryDirectory() as tmp, ThreadingHTTPServer(('127.0.0.1',0), Fixture) as server:

@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+python=${PYTHON:-python3}
+root=$("$python" -c 'from pathlib import Path; import sys; print(Path(sys.argv[1]).resolve().parents[1])' "$0")
+if [[ $# -eq 0 ]]; then
+  exec node "$root/tui.ts"
+fi
+exec "$python" "$root/lab.py" "$@"

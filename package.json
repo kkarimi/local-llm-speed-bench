@@ -1,0 +1,19 @@
+{
+  "name": "local-llm-speed-bench",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "scripts": {
+    "start": "node tui.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@astrojs/cli-kit": "0.4.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "typescript": "^7.0.2"
+  }
+}
